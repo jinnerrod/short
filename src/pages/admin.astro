@@ -1,0 +1,39 @@
+---
+import db from "../db/db";
+
+const urls = db
+    .prepare(
+        `
+SELECT * FROM urls
+ORDER BY created_at DESC
+`,
+    )
+    .all();
+---
+
+<h1>Panel Admin</h1>
+
+<table>
+    <tr>
+        <th>Short</th>
+        <th>URL</th>
+        <th>Clicks</th>
+        <th>Autor</th>
+        <th>Fecha</th>
+    </tr>
+
+    {
+        urls.map((url) => (
+            <tr>
+                <td>
+                    <a href={"/" + url.code}>{url.code}</a>
+                </td>
+
+                <td>{url.url}</td>
+                <td>{url.clicks}</td>
+                <td>{url.author}</td>
+                <td>{url.created_at}</td>
+            </tr>
+        ))
+    }
+</table>

@@ -2,16 +2,39 @@
 
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<h1>Acortador de URL</h1>
+
+<form id="form">
+	<input name="url" placeholder="URL" required />
+	<input name="author" placeholder="Autor" />
+
+	<button>Acortar</button>
+</form>
+
+<p id="result"></p>
+
+<script>
+	const form = document.getElementById("form");
+	const result = document.getElementById("result");
+
+	form.addEventListener("submit", async (e) => {
+		e.preventDefault();
+
+		const data = new FormData(form);
+
+		const res = await fetch("/api/shorten", {
+			method: "POST",
+			body: JSON.stringify({
+				url: data.get("url"),
+				author: data.get("author"),
+			}),
+		});
+
+		const json = await res.json();
+
+		result.innerHTML = `URL corta:
+<a href="${json.short}">
+${location.origin}${json.short}
+</a>`;
+	});
+</script>
