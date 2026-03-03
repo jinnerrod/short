@@ -24,17 +24,27 @@
 
 		const res = await fetch("/api/shorten", {
 			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+			},
 			body: JSON.stringify({
 				url: data.get("url"),
 				author: data.get("author"),
 			}),
 		});
 
+		if (!res.ok) {
+			result.innerHTML = "Error al crear la URL";
+			return;
+		}
+
 		const json = await res.json();
 
-		result.innerHTML = `URL corta:
-<a href="${json.short}">
-${location.origin}${json.short}
-</a>`;
+		result.innerHTML = `
+    URL corta:
+    <a href="${json.short}">
+      ${location.origin}${json.short}
+    </a>
+  `;
 	});
 </script>
