@@ -1,50 +1,152 @@
 ---
-
+// This page is protected by src/middleware.ts
 ---
 
-<h1>Acortador de URL</h1>
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acortar URL</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: Arial, sans-serif;
+        background: #f4f6f9;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+      }
+      .card {
+        background: #fff;
+        border-radius: 8px;
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
+        padding: 40px;
+        width: 100%;
+        max-width: 520px;
+      }
+      h1 {
+        font-size: 1.4rem;
+        color: #333;
+        margin-bottom: 24px;
+      }
+      label {
+        display: block;
+        font-size: 0.85rem;
+        color: #555;
+        margin-bottom: 6px;
+      }
+      input {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 1rem;
+        margin-bottom: 16px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      input:focus {
+        border-color: #1a6e3c;
+      }
+      button {
+        padding: 10px 24px;
+        background: #1a6e3c;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        font-size: 1rem;
+        cursor: pointer;
+        transition: background 0.2s;
+      }
+      button:hover {
+        background: #155a31;
+      }
+      #result {
+        margin-top: 20px;
+        padding: 12px;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        display: none;
+      }
+      #result.success {
+        background: #e8f5ee;
+        color: #1a6e3c;
+      }
+      #result.error {
+        background: #fdecea;
+        color: #c0392b;
+      }
+      #result a {
+        color: inherit;
+        font-weight: 600;
+      }
+      .nav {
+        margin-top: 20px;
+        font-size: 0.85rem;
+      }
+      .nav a {
+        color: #1a6e3c;
+        text-decoration: none;
+      }
+      .nav a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>🔗 Acortar URL</h1>
+      <form id="form">
+        <label for="url">URL de destino *</label>
+        <input id="url" name="url" type="url" placeholder="https://ejemplo.com/..." required />
 
-<form id="form">
-	<input name="url" placeholder="URL" required />
-	<input name="descripcion" placeholder="Autor" />
+        <label for="descripcion">Descripción (opcional)</label>
+        <input id="descripcion" name="descripcion" type="text" placeholder="Autor o descripción" />
 
-	<button>Acortar</button>
-</form>
+        <button type="submit">Acortar</button>
+      </form>
+      <div id="result"></div>
+      <div class="nav">
+        <a href="/admin">← Volver al panel</a>
+      </div>
+    </div>
+    <script>
+      const form = document.getElementById("form");
+      const result = document.getElementById("result");
 
-<p id="result"></p>
+      form.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        result.style.display = "none";
+        result.className = "";
 
-<script>
-	const form = document.getElementById("form");
-	const result = document.getElementById("result");
+        const res = await fetch("/api/shorten", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            url: document.getElementById("url").value,
+            descripcion: document.getElementById("descripcion").value || null,
+          }),
+        });
 
-	form.addEventListener("submit", async (e) => {
-		e.preventDefault();
+        const json = await res.json();
+        result.style.display = "block";
 
-		const data = new FormData(form);
+        if (!res.ok) {
+          result.className = "error";
+          result.textContent = json.error || "Error al crear la URL";
+          return;
+        }
 
-		const res = await fetch("/api/shorten", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({
-				url: data.get("url"),
-				descripcion: data.get("descripcion"),
-			}),
-		});
-
-		if (!res.ok) {
-			result.innerHTML = "Error al crear la URL";
-			return;
-		}
-
-		const json = await res.json();
-
-		result.innerHTML = `
-    URL corta:
-    <a href="${json.short}">
-      ${location.origin}${json.short}
-    </a>
-  `;
-	});
-</script>
+        result.className = "success";
+        result.innerHTML = `URL corta: <a href="${json.short}" target="_blank">${location.origin}${json.short}</a>`;
+        form.reset();
+      });
+    </script>
+  </body>
+</html>

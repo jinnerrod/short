@@ -1,89 +1,383 @@
 ---
-import Layout from "../layouts/Main.astro";
 import db from "../db/db";
 
 const urls = db
-    .prepare(
-        `
-SELECT id, code, descripcion, url, clicks FROM urls
-ORDER BY created_at DESC
-`,
-    )
-    .all();
+  .prepare(
+    `SELECT id, code, descripcion, url, clicks, created_at FROM urls ORDER BY created_at DESC`
+  )
+  .all() as {
+  id: number;
+  code: string;
+  descripcion: string | null;
+  url: string;
+  clicks: number;
+  created_at: string;
+}[];
+
+const stats = db
+  .prepare(`SELECT COUNT(*) as total, COALESCE(SUM(clicks), 0) as totalClicks FROM urls`)
+  .get() as { total: number; totalClicks: number };
+
+const origin = Astro.url.origin;
 ---
 
-<link
-    rel="stylesheet"
-    href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"
-/>
-<Layout>
-    <div class="container">
-        <h1>Lista de URLS</h1>
-        <table class="display cell-border" style="width:100%">
-            <tr>
-                <th>ID</th>
-                <th>Código</th>
-                <th>Descripcion</th>
-                <th>URL de destino</th>
-                <th>Clicks</th>
-            </tr>
-
-            {
-                urls.map((url) => (
-                    <tr>
-                        <td>{url.id}</td>
-                        <td>
-                            <a href={"/" + url.code}>{url.code}</a>
-                        </td>
-                        <td>{url.descripcion}</td>
-                        <td>{url.url}</td>
-                        <td>{url.clicks}</td>
-                    </tr>
-                ))
-            }
-        </table>
-    </div>
-</Layout>
-<!-- ⚠️ Scripts SOLO en cliente -->
-<script client:load src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-
-<script
-    client:load
-    src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
-></script>
-
-<!-- Inicialización segura -->
-<script client:load>
-    $(function () {
-        $("#urlsTable").DataTable({
-            searching: true,
-            paging: true,
-            ordering: true,
-            info: true,
-            pageLength: 10,
-            lengthMenu: [10, 25, 50, 100],
-            dom: "lfrtip",
-            language: {
-                url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json",
-            },
-            order: [[0, "desc"]],
-        });
-    });
-</script>
-
-<style>
-    .container {
-        width: 90%;
-        margin: 40px auto;
-        padding: 20px;
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin - Acortador de URLs</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"
+    />
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
         font-family: Arial, sans-serif;
-    }
-
-    table.dataTable {
-        width: 100% !important;
-    }
-    a {
-        color: var(--color1);
+        background: #f4f6f9;
+        color: #333;
+      }
+      header {
+        background: #1a6e3c;
+        color: #fff;
+        padding: 14px 32px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      header h1 {
+        font-size: 1.2rem;
+        font-weight: 600;
+      }
+      header button {
+        background: rgba(255, 255, 255, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.4);
+        color: #fff;
+        padding: 6px 14px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.85rem;
+        transition: background 0.2s;
+      }
+      header button:hover {
+        background: rgba(255, 255, 255, 0.28);
+      }
+      .main {
+        max-width: 1200px;
+        margin: 32px auto;
+        padding: 0 24px;
+      }
+      /* Stats */
+      .stats {
+        display: flex;
+        gap: 16px;
+        margin-bottom: 28px;
+      }
+      .stat-card {
+        background: #fff;
+        border-radius: 8px;
+        padding: 20px 28px;
+        flex: 1;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .stat-card .label {
+        font-size: 0.8rem;
+        color: #888;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+      }
+      .stat-card .value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: #1a6e3c;
+        margin-top: 4px;
+      }
+      /* Add form */
+      .add-section {
+        background: #fff;
+        border-radius: 8px;
+        padding: 24px;
+        margin-bottom: 28px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .add-section h2 {
+        font-size: 1rem;
+        margin-bottom: 16px;
+        color: #444;
+      }
+      .add-form {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: flex-end;
+      }
+      .add-form input {
+        padding: 9px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .add-form input:focus {
+        border-color: #1a6e3c;
+      }
+      .add-form input[name="url"] {
+        flex: 2;
+        min-width: 200px;
+      }
+      .add-form input[name="descripcion"] {
+        flex: 1;
+        min-width: 160px;
+      }
+      .add-form button {
+        padding: 9px 20px;
+        background: #1a6e3c;
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.95rem;
+        white-space: nowrap;
+        transition: background 0.2s;
+      }
+      .add-form button:hover {
+        background: #155a31;
+      }
+      #addResult {
+        margin-top: 10px;
+        font-size: 0.9rem;
+      }
+      #addResult.success {
+        color: #1a6e3c;
+      }
+      #addResult.error {
+        color: #c0392b;
+      }
+      /* Table section */
+      .table-section {
+        background: #fff;
+        border-radius: 8px;
+        padding: 24px;
+        box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+      }
+      .table-section h2 {
+        font-size: 1rem;
+        margin-bottom: 16px;
+        color: #444;
+      }
+      table.dataTable thead th {
+        background: #f8f9fa;
+      }
+      .short-link {
+        color: #1a6e3c;
         text-decoration: none;
-    }
-</style>
+        font-family: monospace;
+      }
+      .short-link:hover {
+        text-decoration: underline;
+      }
+      .dest-url {
+        max-width: 280px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        color: #555;
+        font-size: 0.85rem;
+      }
+      .btn-delete {
+        background: none;
+        border: 1px solid #e74c3c;
+        color: #e74c3c;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        transition:
+          background 0.2s,
+          color 0.2s;
+      }
+      .btn-delete:hover {
+        background: #e74c3c;
+        color: #fff;
+      }
+      .badge-clicks {
+        display: inline-block;
+        background: #e8f5ee;
+        color: #1a6e3c;
+        padding: 2px 8px;
+        border-radius: 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🔗 Admin — Acortador de URLs</h1>
+      <form id="logoutForm">
+        <button type="submit">Cerrar sesión</button>
+      </form>
+    </header>
+
+    <div class="main">
+      <!-- Stats -->
+      <div class="stats">
+        <div class="stat-card">
+          <div class="label">Total URLs</div>
+          <div class="value">{stats.total}</div>
+        </div>
+        <div class="stat-card">
+          <div class="label">Total clicks</div>
+          <div class="value">{stats.totalClicks}</div>
+        </div>
+      </div>
+
+      <!-- Add URL form -->
+      <div class="add-section">
+        <h2>Agregar nueva URL</h2>
+        <div class="add-form">
+          <input name="url" type="url" placeholder="https://ejemplo.com/..." required />
+          <input name="descripcion" type="text" placeholder="Descripción (opcional)" />
+          <button type="button" id="btnAdd">Acortar</button>
+        </div>
+        <div id="addResult"></div>
+      </div>
+
+      <!-- URLs table -->
+      <div class="table-section">
+        <h2>URLs registradas</h2>
+        <table id="urlsTable" class="display cell-border" style="width:100%">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>URL de destino</th>
+              <th>Clicks</th>
+              <th>Creado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            {
+              urls.map((u) => (
+                <tr id={`row-${u.id}`}>
+                  <td>{u.id}</td>
+                  <td>
+                    <a class="short-link" href={"/" + u.code} target="_blank">
+                      {u.code}
+                    </a>
+                  </td>
+                  <td>{u.descripcion ?? "—"}</td>
+                  <td>
+                    <span class="dest-url" title={u.url}>
+                      {u.url}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="badge-clicks">{u.clicks}</span>
+                  </td>
+                  <td>{u.created_at?.slice(0, 16).replace("T", " ") ?? "—"}</td>
+                  <td>
+                    <button class="btn-delete" data-id={u.id}>
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              ))
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
+    ></script>
+    <script define:vars={{ origin }}>
+      $(function () {
+        const table = $("#urlsTable").DataTable({
+          searching: true,
+          paging: true,
+          ordering: true,
+          info: true,
+          pageLength: 25,
+          lengthMenu: [10, 25, 50, 100],
+          dom: "lfrtip",
+          language: {
+            url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json",
+          },
+          order: [[0, "desc"]],
+          columnDefs: [{ orderable: false, targets: 6 }],
+        });
+
+        // Delete handler
+        $("#urlsTable").on("click", ".btn-delete", async function () {
+          const id = parseInt($(this).data("id"), 10);
+          if (!confirm("¿Eliminar esta URL?")) return;
+
+          const res = await fetch("/api/admin/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
+
+          if (res.ok) {
+            const row = table.row(`#row-${id}`);
+            row.remove().draw(false);
+          } else {
+            alert("Error al eliminar la URL");
+          }
+        });
+
+        // Add URL handler
+        document.getElementById("btnAdd").addEventListener("click", async () => {
+          const urlInput = document.querySelector(".add-form input[name='url']");
+          const descInput = document.querySelector(
+            ".add-form input[name='descripcion']"
+          );
+          const result = document.getElementById("addResult");
+
+          result.className = "";
+          result.textContent = "";
+
+          const res = await fetch("/api/shorten", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              url: urlInput.value,
+              descripcion: descInput.value || null,
+            }),
+          });
+
+          const json = await res.json();
+
+          if (!res.ok) {
+            result.className = "error";
+            result.textContent = json.error || "Error al acortar la URL";
+            return;
+          }
+
+          result.className = "success";
+          result.innerHTML = `URL creada: <a class="short-link" href="${json.short}" target="_blank">${origin}${json.short}</a> — recarga la página para ver la nueva entrada.`;
+          urlInput.value = "";
+          descInput.value = "";
+        });
+
+        // Logout handler
+        document.getElementById("logoutForm").addEventListener("submit", async (e) => {
+          e.preventDefault();
+          await fetch("/api/auth/logout", { method: "POST" });
+          window.location.href = "/login";
+        });
+      });
+    </script>
+  </body>
+</html>
