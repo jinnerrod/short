@@ -6,7 +6,10 @@ import { createHash, timingSafeEqual } from "crypto";
  * for timing-safe comparison.
  */
 export function verifyPassword(input: string): boolean {
-  const adminPassword = process.env.ADMIN_PASSWORD;
+  // import.meta.env is how Astro/Vite exposes .env variables at runtime
+  const adminPassword =
+    (import.meta.env?.ADMIN_PASSWORD as string | undefined) ??
+    process.env.ADMIN_PASSWORD;
   if (!adminPassword) return false;
 
   const inputHash = createHash("sha256").update(input).digest();
