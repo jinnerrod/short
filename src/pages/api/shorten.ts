@@ -3,14 +3,14 @@ import { generateCode } from "../../utils/base62";
 
 export async function POST({ request }) {
 
-  const { url, author } = await request.json();
+  const { url, descripcion } = await request.json();
 
   const code = generateCode();
 
   db.prepare(`
-    INSERT INTO urls (code, url, author, created_at)
+    INSERT INTO urls (code, url, descripcion, created_at)
     VALUES (?, ?, ?, datetime('now'))
-  `).run(code, url, author);
+  `).run(code, url, descripcion);
 
   return new Response(JSON.stringify({
     short: "/" + code

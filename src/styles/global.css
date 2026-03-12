@@ -1,0 +1,33 @@
+table {
+    width: 50%;
+    border-collapse: collapse;
+    font-family: Arial;
+    margin: 0 auto;
+  }
+
+  th {
+    background-color: #4caf50;
+    color: white;
+    padding: 10px;
+  }
+
+  td {
+    border: 1px solid #ddd;
+    padding: 10px;
+  }
+
+  tr:nth-child(even) {
+    background-color: #f2f2f2; /* filas alternadas */
+  }
+
+a {
+    color: green;
+    font-weight: bold;
+  }
+a:hover{
+  opacity: 50%;
+}
+
+h2{
+  margin: 0;
+}

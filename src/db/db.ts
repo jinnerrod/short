@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS urls (
  id INTEGER PRIMARY KEY AUTOINCREMENT,
  code TEXT UNIQUE,
  url TEXT,
- author TEXT,
+ descripcion TEXT,
  clicks INTEGER DEFAULT 0,
  created_at TEXT
 )

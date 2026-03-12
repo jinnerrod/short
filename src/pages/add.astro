@@ -6,7 +6,7 @@
 
 <form id="form">
 	<input name="url" placeholder="URL" required />
-	<input name="author" placeholder="Autor" />
+	<input name="descripcion" placeholder="Autor" />
 
 	<button>Acortar</button>
 </form>
@@ -29,7 +29,7 @@
 			},
 			body: JSON.stringify({
 				url: data.get("url"),
-				author: data.get("author"),
+				descripcion: data.get("descripcion"),
 			}),
 		});
 

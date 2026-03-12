@@ -1,39 +1,89 @@
 ---
+import Layout from "../layouts/Main.astro";
 import db from "../db/db";
 
 const urls = db
     .prepare(
         `
-SELECT * FROM urls
+SELECT id, code, descripcion, url, clicks FROM urls
 ORDER BY created_at DESC
 `,
     )
     .all();
 ---
 
-<h1>Panel Admin</h1>
-
-<table>
-    <tr>
-        <th>Short</th>
-        <th>URL</th>
-        <th>Clicks</th>
-        <th>Autor</th>
-        <th>Fecha</th>
-    </tr>
-
-    {
-        urls.map((url) => (
+<link
+    rel="stylesheet"
+    href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"
+/>
+<Layout>
+    <div class="container">
+        <h1>Lista de URLS</h1>
+        <table class="display cell-border" style="width:100%">
             <tr>
-                <td>
-                    <a href={"/" + url.code}>{url.code}</a>
-                </td>
-
-                <td>{url.url}</td>
-                <td>{url.clicks}</td>
-                <td>{url.author}</td>
-                <td>{url.created_at}</td>
+                <th>ID</th>
+                <th>Código</th>
+                <th>Descripcion</th>
+                <th>URL de destino</th>
+                <th>Clicks</th>
             </tr>
-        ))
+
+            {
+                urls.map((url) => (
+                    <tr>
+                        <td>{url.id}</td>
+                        <td>
+                            <a href={"/" + url.code}>{url.code}</a>
+                        </td>
+                        <td>{url.descripcion}</td>
+                        <td>{url.url}</td>
+                        <td>{url.clicks}</td>
+                    </tr>
+                ))
+            }
+        </table>
+    </div>
+</Layout>
+<!-- ⚠️ Scripts SOLO en cliente -->
+<script client:load src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+
+<script
+    client:load
+    src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
+></script>
+
+<!-- Inicialización segura -->
+<script client:load>
+    $(function () {
+        $("#urlsTable").DataTable({
+            searching: true,
+            paging: true,
+            ordering: true,
+            info: true,
+            pageLength: 10,
+            lengthMenu: [10, 25, 50, 100],
+            dom: "lfrtip",
+            language: {
+                url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json",
+            },
+            order: [[0, "desc"]],
+        });
+    });
+</script>
+
+<style>
+    .container {
+        width: 90%;
+        margin: 40px auto;
+        padding: 20px;
+        font-family: Arial, sans-serif;
     }
-</table>
+
+    table.dataTable {
+        width: 100% !important;
+    }
+    a {
+        color: var(--color1);
+        text-decoration: none;
+    }
+</style>
