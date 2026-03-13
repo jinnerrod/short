@@ -52,7 +52,7 @@ const stats = db
         font-size: 1.2rem;
         font-weight: 600;
       }
-      header button {
+      .btn-logout {
         background: rgba(255, 255, 255, 0.15);
         border: 1px solid rgba(255, 255, 255, 0.4);
         color: #fff;
@@ -60,9 +60,10 @@ const stats = db
         border-radius: 4px;
         cursor: pointer;
         font-size: 0.85rem;
+        text-decoration: none;
         transition: background 0.2s;
       }
-      header button:hover {
+      .btn-logout:hover {
         background: rgba(255, 255, 255, 0.28);
       }
       .main {
@@ -311,9 +312,7 @@ const stats = db
   <body>
     <header>
       <h1>🔗 Admin — Acortador de URLs</h1>
-      <form action="/api/auth/logout" method="post">
-        <button type="submit">Cerrar sesión</button>
-      </form>
+      <a href="/logout" class="btn-logout">Cerrar sesión</a>
     </header>
 
     <div class="main">

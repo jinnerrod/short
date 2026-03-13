@@ -1,0 +1,18 @@
+---
+import { destroySession } from "../lib/session";
+
+const token = Astro.cookies.get("session")?.value;
+if (token) {
+  destroySession(token);
+}
+
+Astro.cookies.set("session", "", {
+  httpOnly: true,
+  secure: import.meta.env.PROD,
+  sameSite: "strict",
+  maxAge: 0,
+  path: "/",
+});
+
+return Astro.redirect("/login", 302);
+---
