@@ -1,5 +1,5 @@
-import db from "../../db/db";
-import { generateCode } from "../../utils/base62";
+import db from "../../../db/db";
+import { generateCode } from "../../../utils/base62";
 
 function isValidUrl(str: string): boolean {
   try {
@@ -35,12 +35,14 @@ export async function POST({ request }) {
     }
   } while (db.prepare("SELECT 1 FROM urls WHERE code = ?").get(code));
 
-  db.prepare(
+  const desc = descripcion || null;
+  const info = db.prepare(
     `INSERT INTO urls (code, url, descripcion, created_at)
      VALUES (?, ?, ?, datetime('now'))`
-  ).run(code, url, descripcion || null);
+  ).run(code, url, desc);
 
-  return new Response(JSON.stringify({ short: "/" + code }), {
-    headers: { "Content-Type": "application/json" },
-  });
+  return new Response(
+    JSON.stringify({ short: "/" + code, id: info.lastInsertRowid, url, descripcion: desc }),
+    { headers: { "Content-Type": "application/json" } }
+  );
 }

@@ -17,8 +17,6 @@ const urls = db
 const stats = db
   .prepare(`SELECT COUNT(*) as total, COALESCE(SUM(clicks), 0) as totalClicks FROM urls`)
   .get() as { total: number; totalClicks: number };
-
-const origin = Astro.url.origin;
 ---
 
 <!doctype html>
@@ -54,7 +52,7 @@ const origin = Astro.url.origin;
         font-size: 1.2rem;
         font-weight: 600;
       }
-      header button {
+      .btn-logout {
         background: rgba(255, 255, 255, 0.15);
         border: 1px solid rgba(255, 255, 255, 0.4);
         color: #fff;
@@ -62,9 +60,10 @@ const origin = Astro.url.origin;
         border-radius: 4px;
         cursor: pointer;
         font-size: 0.85rem;
+        text-decoration: none;
         transition: background 0.2s;
       }
-      header button:hover {
+      .btn-logout:hover {
         background: rgba(255, 255, 255, 0.28);
       }
       .main {
@@ -183,7 +182,7 @@ const origin = Astro.url.origin;
         text-decoration: underline;
       }
       .dest-url {
-        max-width: 280px;
+        max-width: 240px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
@@ -199,12 +198,25 @@ const origin = Astro.url.origin;
         border-radius: 4px;
         cursor: pointer;
         font-size: 0.8rem;
-        transition:
-          background 0.2s,
-          color 0.2s;
+        transition: background 0.2s, color 0.2s;
       }
       .btn-delete:hover {
         background: #e74c3c;
+        color: #fff;
+      }
+      .btn-edit {
+        background: none;
+        border: 1px solid #2980b9;
+        color: #2980b9;
+        padding: 4px 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+        margin-right: 4px;
+        transition: background 0.2s, color 0.2s;
+      }
+      .btn-edit:hover {
+        background: #2980b9;
         color: #fff;
       }
       .badge-clicks {
@@ -216,14 +228,91 @@ const origin = Astro.url.origin;
         font-size: 0.8rem;
         font-weight: 600;
       }
+      /* Edit modal */
+      .modal-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 1000;
+        align-items: center;
+        justify-content: center;
+      }
+      .modal-overlay.active {
+        display: flex;
+      }
+      .modal {
+        background: #fff;
+        border-radius: 8px;
+        padding: 28px;
+        width: 100%;
+        max-width: 480px;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.18);
+      }
+      .modal h3 {
+        font-size: 1rem;
+        margin-bottom: 18px;
+        color: #333;
+      }
+      .modal label {
+        display: block;
+        font-size: 0.82rem;
+        color: #666;
+        margin-bottom: 5px;
+      }
+      .modal input {
+        width: 100%;
+        padding: 9px 12px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 0.95rem;
+        margin-bottom: 14px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .modal input:focus {
+        border-color: #1a6e3c;
+      }
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        justify-content: flex-end;
+        margin-top: 4px;
+      }
+      .modal-actions button {
+        padding: 8px 18px;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        border: none;
+      }
+      .btn-cancel {
+        background: #f0f0f0;
+        color: #555;
+      }
+      .btn-cancel:hover {
+        background: #e0e0e0;
+      }
+      .btn-save {
+        background: #1a6e3c;
+        color: #fff;
+        transition: background 0.2s;
+      }
+      .btn-save:hover {
+        background: #155a31;
+      }
+      #modalError {
+        font-size: 0.85rem;
+        color: #c0392b;
+        margin-bottom: 8px;
+        min-height: 1.2em;
+      }
     </style>
   </head>
   <body>
     <header>
       <h1>🔗 Admin — Acortador de URLs</h1>
-      <form id="logoutForm">
-        <button type="submit">Cerrar sesión</button>
-      </form>
+      <a href="/logout" class="btn-logout">Cerrar sesión</a>
     </header>
 
     <div class="main">
@@ -231,7 +320,7 @@ const origin = Astro.url.origin;
       <div class="stats">
         <div class="stat-card">
           <div class="label">Total URLs</div>
-          <div class="value">{stats.total}</div>
+          <div class="value" id="statTotal">{stats.total}</div>
         </div>
         <div class="stat-card">
           <div class="label">Total clicks</div>
@@ -262,7 +351,7 @@ const origin = Astro.url.origin;
               <th>URL de destino</th>
               <th>Clicks</th>
               <th>Creado</th>
-              <th>Acción</th>
+              <th>Acciones</th>
             </tr>
           </thead>
           <tbody id="tableBody">
@@ -275,7 +364,7 @@ const origin = Astro.url.origin;
                       {u.code}
                     </a>
                   </td>
-                  <td>{u.descripcion ?? "—"}</td>
+                  <td class="cell-desc">{u.descripcion ?? "—"}</td>
                   <td>
                     <span class="dest-url" title={u.url}>
                       {u.url}
@@ -286,6 +375,14 @@ const origin = Astro.url.origin;
                   </td>
                   <td>{u.created_at?.slice(0, 16).replace("T", " ") ?? "—"}</td>
                   <td>
+                    <button
+                      class="btn-edit"
+                      data-id={u.id}
+                      data-url={u.url}
+                      data-desc={u.descripcion ?? ""}
+                    >
+                      Editar
+                    </button>
                     <button class="btn-delete" data-id={u.id}>
                       Eliminar
                     </button>
@@ -298,11 +395,28 @@ const origin = Astro.url.origin;
       </div>
     </div>
 
-    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
-    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
-    ></script>
-    <script define:vars={{ origin }}>
+    <!-- Edit modal -->
+    <div class="modal-overlay" id="editOverlay">
+      <div class="modal">
+        <h3>Editar enlace</h3>
+        <input type="hidden" id="editId" />
+        <label for="editUrl">URL de destino</label>
+        <input id="editUrl" type="url" placeholder="https://ejemplo.com/..." required />
+        <label for="editDesc">Descripción</label>
+        <input id="editDesc" type="text" placeholder="Descripción (opcional)" />
+        <div id="modalError"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="btnCancel">Cancelar</button>
+          <button class="btn-save" id="btnSave">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <script is:inline src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script is:inline src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script is:inline>
       $(function () {
+        const origin = location.origin;
         const table = $("#urlsTable").DataTable({
           searching: true,
           paging: true,
@@ -318,7 +432,7 @@ const origin = Astro.url.origin;
           columnDefs: [{ orderable: false, targets: 6 }],
         });
 
-        // Delete handler
+        // ── Delete ──────────────────────────────────────────────
         $("#urlsTable").on("click", ".btn-delete", async function () {
           const id = parseInt($(this).data("id"), 10);
           if (!confirm("¿Eliminar esta URL?")) return;
@@ -330,25 +444,23 @@ const origin = Astro.url.origin;
           });
 
           if (res.ok) {
-            const row = table.row(`#row-${id}`);
-            row.remove().draw(false);
+            table.row(`#row-${id}`).remove().draw(false);
+            updateStatTotal(-1);
           } else {
             alert("Error al eliminar la URL");
           }
         });
 
-        // Add URL handler
+        // ── Add URL ─────────────────────────────────────────────
         document.getElementById("btnAdd").addEventListener("click", async () => {
           const urlInput = document.querySelector(".add-form input[name='url']");
-          const descInput = document.querySelector(
-            ".add-form input[name='descripcion']"
-          );
+          const descInput = document.querySelector(".add-form input[name='descripcion']");
           const result = document.getElementById("addResult");
 
           result.className = "";
           result.textContent = "";
 
-          const res = await fetch("/api/shorten", {
+          const res = await fetch("/api/admin/shorten", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -366,17 +478,105 @@ const origin = Astro.url.origin;
           }
 
           result.className = "success";
-          result.innerHTML = `URL creada: <a class="short-link" href="${json.short}" target="_blank">${origin}${json.short}</a> — recarga la página para ver la nueva entrada.`;
+          result.innerHTML = `URL creada: <a class="short-link" href="${json.short}" target="_blank">${origin}${json.short}</a>`;
           urlInput.value = "";
           descInput.value = "";
+
+          // Add row to table without page reload
+          const code = json.short.replace("/", "");
+          const newRow = table.row.add([
+            json.id,
+            `<a class="short-link" href="${json.short}" target="_blank">${code}</a>`,
+            json.descripcion ?? "—",
+            `<span class="dest-url" title="${escHtml(json.url)}">${escHtml(json.url)}</span>`,
+            `<span class="badge-clicks">0</span>`,
+            new Date().toISOString().slice(0, 16).replace("T", " "),
+            `<button class="btn-edit" data-id="${json.id}" data-url="${escHtml(json.url)}" data-desc="${escHtml(json.descripcion ?? "")}" >Editar</button>
+             <button class="btn-delete" data-id="${json.id}">Eliminar</button>`,
+          ]);
+          newRow.node().id = `row-${json.id}`;
+          table.draw(false);
+          updateStatTotal(1);
         });
 
-        // Logout handler
-        document.getElementById("logoutForm").addEventListener("submit", async (e) => {
-          e.preventDefault();
-          await fetch("/api/auth/logout", { method: "POST" });
-          window.location.href = "/login";
+        // ── Edit modal ──────────────────────────────────────────
+        const overlay = document.getElementById("editOverlay");
+        const editId = document.getElementById("editId");
+        const editUrl = document.getElementById("editUrl");
+        const editDesc = document.getElementById("editDesc");
+        const modalError = document.getElementById("modalError");
+
+        function openModal(id, url, desc) {
+          editId.value = id;
+          editUrl.value = url;
+          editDesc.value = desc;
+          modalError.textContent = "";
+          overlay.classList.add("active");
+          editUrl.focus();
+        }
+
+        function closeModal() {
+          overlay.classList.remove("active");
+        }
+
+        $("#urlsTable").on("click", ".btn-edit", function () {
+          openModal(
+            $(this).data("id"),
+            $(this).data("url"),
+            $(this).data("desc")
+          );
         });
+
+        document.getElementById("btnCancel").addEventListener("click", closeModal);
+        overlay.addEventListener("click", (e) => {
+          if (e.target === overlay) closeModal();
+        });
+
+        document.getElementById("btnSave").addEventListener("click", async () => {
+          const id = parseInt(editId.value, 10);
+          const url = editUrl.value.trim();
+          const desc = editDesc.value.trim();
+          modalError.textContent = "";
+
+          const res = await fetch("/api/admin/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, url, descripcion: desc || null }),
+          });
+
+          const json = await res.json();
+          if (!res.ok) {
+            modalError.textContent = json.error || "Error al guardar";
+            return;
+          }
+
+          // Update row in table
+          const row = table.row(`#row-${id}`);
+          const data = row.data();
+          data[2] = desc || "—";
+          data[3] = `<span class="dest-url" title="${escHtml(url)}">${escHtml(url)}</span>`;
+          // Update edit button data attributes
+          const editBtn = row.node().querySelector(".btn-edit");
+          editBtn.dataset.url = url;
+          editBtn.dataset.desc = desc;
+          row.data(data).draw(false);
+
+          closeModal();
+        });
+
+        // ── Helpers ─────────────────────────────────────────────
+        function updateStatTotal(delta) {
+          const el = document.getElementById("statTotal");
+          el.textContent = parseInt(el.textContent, 10) + delta;
+        }
+
+        function escHtml(str) {
+          return String(str)
+            .replace(/&/g, "&amp;")
+            .replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;");
+        }
       });
     </script>
   </body>
