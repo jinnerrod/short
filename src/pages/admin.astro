@@ -311,7 +311,7 @@ const stats = db
   <body>
     <header>
       <h1>🔗 Admin — Acortador de URLs</h1>
-      <form id="logoutForm">
+      <form action="/api/auth/logout" method="post">
         <button type="submit">Cerrar sesión</button>
       </form>
     </header>
@@ -563,13 +563,6 @@ const stats = db
           row.data(data).draw(false);
 
           closeModal();
-        });
-
-        // ── Logout ──────────────────────────────────────────────
-        document.getElementById("logoutForm").addEventListener("submit", async (e) => {
-          e.preventDefault();
-          await fetch("/api/auth/logout", { method: "POST" });
-          window.location.href = "/login";
         });
 
         // ── Helpers ─────────────────────────────────────────────
