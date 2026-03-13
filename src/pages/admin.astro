@@ -17,8 +17,6 @@ const urls = db
 const stats = db
   .prepare(`SELECT COUNT(*) as total, COALESCE(SUM(clicks), 0) as totalClicks FROM urls`)
   .get() as { total: number; totalClicks: number };
-
-const origin = Astro.url.origin;
 ---
 
 <!doctype html>
@@ -418,8 +416,9 @@ const origin = Astro.url.origin;
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"
     ></script>
-    <script define:vars={{ origin }}>
+    <script is:inline>
       $(function () {
+        const origin = location.origin;
         const table = $("#urlsTable").DataTable({
           searching: true,
           paging: true,
