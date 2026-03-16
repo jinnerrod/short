@@ -96,6 +96,73 @@ npm start
 
 ---
 
+## Docker
+
+### Construcción y ejecución rápida
+
+```bash
+# Construir imagen
+docker build -t url-shortener .
+
+# Ejecutar
+docker run -d \
+  --name url-shortener \
+  -p 4321:4321 \
+  -v url-shortener-data:/app/data \
+  -e ADMIN_PASSWORD=tu-contraseña-segura \
+  -e NODE_ENV=production \
+  url-shortener
+```
+
+La aplicación quedará disponible en `http://localhost:4321`.
+
+### Persistencia de datos
+
+La base de datos SQLite se guarda en `/app/data/urls.db` dentro del contenedor.
+El volumen `-v url-shortener-data:/app/data` asegura que los datos sobreviven al reinicio o recreación del contenedor.
+
+### Con Docker Compose
+
+Crear `docker-compose.yml`:
+
+```yaml
+services:
+  app:
+    build: .
+    ports:
+      - "4321:4321"
+    volumes:
+      - data:/app/data
+    environment:
+      ADMIN_PASSWORD: tu-contraseña-segura
+      NODE_ENV: production
+    restart: unless-stopped
+
+volumes:
+  data:
+```
+
+```bash
+docker compose up -d
+```
+
+### Variables de entorno en Docker
+
+Pasar variables individuales con `-e` o usar un archivo:
+
+```bash
+docker run -d \
+  --name url-shortener \
+  -p 4321:4321 \
+  -v url-shortener-data:/app/data \
+  --env-file .env \
+  url-shortener
+```
+
+> **Nota:** El archivo `.env` nunca se copia dentro de la imagen (ver `.dockerignore`). Siempre se inyecta en tiempo de ejecución.
+
+---
+
 ## API
 
 Todos los endpoints `/api/admin/*` requieren sesión activa (cookie `session`).
