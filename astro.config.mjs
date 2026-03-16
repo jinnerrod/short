@@ -6,6 +6,9 @@ export default defineConfig({
         server: {
             allowedHosts: ['furag.iiap.org.co','link.iiap.org.co', 'localhost', '127.0.0.1'],
         },
+        ssr: {
+            external: ["better-sqlite3"],
+        },
     },
     server: {
         host: true,

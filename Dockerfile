@@ -8,7 +8,9 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
-RUN npm run build
+RUN npm run build && \
+    test -f dist/server/entry.mjs || \
+    (echo "ERROR: dist/server/entry.mjs no fue generado — el build falló" && exit 1)
 
 
 FROM node:22-alpine
