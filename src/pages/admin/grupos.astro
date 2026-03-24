@@ -1,0 +1,527 @@
+---
+import db from "../../db/db";
+
+const grupos = db
+  .prepare(
+    `SELECT g.id, g.slug, g.nombre, g.descripcion, g.created_at,
+            COUNT(gi.id) as item_count
+     FROM grupos g
+     LEFT JOIN grupo_items gi ON gi.grupo_id = g.id
+     GROUP BY g.id
+     ORDER BY g.created_at DESC`
+  )
+  .all() as {
+  id: number;
+  slug: string;
+  nombre: string;
+  descripcion: string | null;
+  created_at: string;
+  item_count: number;
+}[];
+---
+
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Grupos — Acortador de URLs</title>
+    <link
+      rel="stylesheet"
+      href="https://cdn.datatables.net/1.13.8/css/jquery.dataTables.min.css"
+    />
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { font-family: Arial, sans-serif; background: #f4f6f9; color: #333; }
+      header {
+        background: #1a6e3c; color: #fff;
+        padding: 14px 32px;
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      header h1 { font-size: 1.2rem; font-weight: 600; }
+      .header-actions { display: flex; gap: 10px; align-items: center; }
+      .btn-nav {
+        background: rgba(255,255,255,0.15);
+        border: 1px solid rgba(255,255,255,0.4);
+        color: #fff; padding: 6px 14px; border-radius: 4px;
+        cursor: pointer; font-size: 0.85rem; text-decoration: none;
+        transition: background 0.2s;
+      }
+      .btn-nav:hover { background: rgba(255,255,255,0.28); }
+      .main { max-width: 1100px; margin: 32px auto; padding: 0 24px; }
+      .add-section {
+        background: #fff; border-radius: 8px; padding: 24px;
+        margin-bottom: 28px; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      }
+      .add-section h2 { font-size: 1rem; margin-bottom: 16px; color: #444; }
+      .add-form { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+      .add-form input {
+        padding: 9px 12px; border: 1px solid #ddd; border-radius: 4px;
+        font-size: 0.95rem; outline: none; transition: border-color 0.2s;
+      }
+      .add-form input:focus { border-color: #1a6e3c; }
+      .add-form input[name="nombre"] { flex: 2; min-width: 180px; }
+      .add-form input[name="descripcion"] { flex: 2; min-width: 180px; }
+      .add-form button {
+        padding: 9px 20px; background: #1a6e3c; color: #fff;
+        border: none; border-radius: 4px; cursor: pointer;
+        font-size: 0.95rem; white-space: nowrap; transition: background 0.2s;
+      }
+      .add-form button:hover { background: #155a31; }
+      #addResult { margin-top: 10px; font-size: 0.9rem; }
+      #addResult.error { color: #c0392b; }
+      .table-section {
+        background: #fff; border-radius: 8px; padding: 24px;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+      }
+      .table-section h2 { font-size: 1rem; margin-bottom: 16px; color: #444; }
+      table.dataTable thead th { background: #f8f9fa; }
+      .badge-items {
+        display: inline-block; background: #e8f5ee; color: #1a6e3c;
+        padding: 2px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;
+      }
+      .short-link { color: #1a6e3c; text-decoration: none; font-family: monospace; }
+      .short-link:hover { text-decoration: underline; }
+      .btn-delete {
+        background: none; border: 1px solid #e74c3c; color: #e74c3c;
+        padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+        transition: background 0.2s, color 0.2s;
+      }
+      .btn-delete:hover { background: #e74c3c; color: #fff; }
+      .btn-manage {
+        background: none; border: 1px solid #1a6e3c; color: #1a6e3c;
+        padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+        margin-right: 4px; transition: background 0.2s, color 0.2s;
+      }
+      .btn-manage:hover { background: #1a6e3c; color: #fff; }
+      .btn-edit {
+        background: none; border: 1px solid #2980b9; color: #2980b9;
+        padding: 4px 10px; border-radius: 4px; cursor: pointer; font-size: 0.8rem;
+        margin-right: 4px; transition: background 0.2s, color 0.2s;
+      }
+      .btn-edit:hover { background: #2980b9; color: #fff; }
+
+      /* ── Modals ── */
+      .modal-overlay {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.45); z-index: 1000;
+        align-items: center; justify-content: center;
+      }
+      .modal-overlay.active { display: flex; }
+      .modal {
+        background: #fff; border-radius: 8px; padding: 28px;
+        width: 100%; max-width: 560px;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.18);
+        max-height: 90vh; overflow-y: auto;
+      }
+      .modal-header {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 20px;
+      }
+      .modal-header h3 { font-size: 1rem; color: #333; }
+      .btn-close {
+        background: none; border: none; font-size: 1.3rem;
+        cursor: pointer; color: #999; line-height: 1;
+      }
+      .btn-close:hover { color: #333; }
+      .modal label {
+        display: block; font-size: 0.82rem; color: #666; margin-bottom: 5px;
+      }
+      .modal input {
+        width: 100%; padding: 9px 12px; border: 1px solid #ddd;
+        border-radius: 4px; font-size: 0.95rem; margin-bottom: 14px;
+        outline: none; transition: border-color 0.2s;
+      }
+      .modal input:focus { border-color: #1a6e3c; }
+      .modal-actions {
+        display: flex; gap: 10px; justify-content: flex-end; margin-top: 4px;
+      }
+      .modal-actions button {
+        padding: 8px 18px; border-radius: 4px;
+        font-size: 0.9rem; cursor: pointer; border: none;
+      }
+      .btn-cancel { background: #f0f0f0; color: #555; }
+      .btn-cancel:hover { background: #e0e0e0; }
+      .btn-save { background: #1a6e3c; color: #fff; transition: background 0.2s; }
+      .btn-save:hover { background: #155a31; }
+      .modal-error { font-size: 0.85rem; color: #c0392b; margin-bottom: 8px; min-height: 1.2em; }
+
+      /* Items list inside manage modal */
+      .items-list { margin-bottom: 20px; }
+      .item-row {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 0; border-bottom: 1px solid #f0f0f0;
+      }
+      .item-row:last-child { border-bottom: none; }
+      .item-info { flex: 1; min-width: 0; }
+      .item-title { font-size: 0.9rem; font-weight: 600; color: #333; }
+      .item-url {
+        font-size: 0.8rem; color: #888;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .item-actions { display: flex; gap: 6px; flex-shrink: 0; }
+      .items-empty { color: #999; font-size: 0.9rem; text-align: center; padding: 16px 0; }
+      .add-item-section { border-top: 1px solid #eee; padding-top: 16px; }
+      .add-item-section h4 { font-size: 0.9rem; color: #444; margin-bottom: 12px; }
+      .add-item-result { font-size: 0.85rem; margin-top: -8px; margin-bottom: 8px; }
+      .add-item-result.error { color: #c0392b; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🗂️ Grupos de URLs</h1>
+      <div class="header-actions">
+        <a href="/admin" class="btn-nav">← Panel admin</a>
+        <a href="/logout" class="btn-nav">Cerrar sesión</a>
+      </div>
+    </header>
+
+    <div class="main">
+      <!-- Crear grupo -->
+      <div class="add-section">
+        <h2>Crear nuevo grupo</h2>
+        <div class="add-form">
+          <input name="nombre" type="text" placeholder="Nombre del grupo" required />
+          <input name="descripcion" type="text" placeholder="Descripción (opcional)" />
+          <button type="button" id="btnCreate">Crear grupo</button>
+        </div>
+        <div id="addResult"></div>
+      </div>
+
+      <!-- Tabla de grupos -->
+      <div class="table-section">
+        <h2>Grupos registrados</h2>
+        <table id="gruposTable" class="display cell-border" style="width:100%">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Descripción</th>
+              <th>Enlace público</th>
+              <th>Items</th>
+              <th>Creado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody">
+            {grupos.map((g) => (
+              <tr id={`row-${g.id}`}>
+                <td>{g.id}</td>
+                <td class="cell-nombre">{g.nombre}</td>
+                <td class="cell-desc">{g.descripcion ?? "—"}</td>
+                <td>
+                  <a class="short-link" href={`/g/${g.slug}`} target="_blank">/g/{g.slug}</a>
+                </td>
+                <td><span class="badge-items">{g.item_count}</span></td>
+                <td>{g.created_at?.slice(0, 16).replace("T", " ") ?? "—"}</td>
+                <td>
+                  <button class="btn-manage"
+                    data-id={g.id} data-nombre={g.nombre} data-slug={g.slug}>
+                    Gestionar
+                  </button>
+                  <button class="btn-edit"
+                    data-id={g.id} data-nombre={g.nombre} data-desc={g.descripcion ?? ""}>
+                    Editar
+                  </button>
+                  <button class="btn-delete" data-id={g.id}>Eliminar</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Modal: gestionar items -->
+    <div class="modal-overlay" id="manageOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3 id="manageTitle">Gestionar grupo</h3>
+          <button class="btn-close" id="btnCloseManage">✕</button>
+        </div>
+        <input type="hidden" id="manageGroupId" />
+        <div class="items-list" id="itemsList"></div>
+        <div class="add-item-section">
+          <h4 id="addItemFormTitle">Agregar enlace</h4>
+          <input type="hidden" id="editItemId" />
+          <label for="itemTitulo">Título</label>
+          <input id="itemTitulo" type="text" placeholder="Ej: Sitio web oficial" />
+          <label for="itemUrl">URL</label>
+          <input id="itemUrl" type="url" placeholder="https://..." required />
+          <div class="add-item-result" id="addItemResult"></div>
+          <div class="modal-actions">
+            <button class="btn-cancel" id="btnCancelItem" style="display:none">Cancelar edición</button>
+            <button class="btn-save" id="btnSaveItem">Agregar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal: editar grupo -->
+    <div class="modal-overlay" id="editOverlay">
+      <div class="modal">
+        <div class="modal-header">
+          <h3>Editar grupo</h3>
+          <button class="btn-close" id="btnCloseEdit">✕</button>
+        </div>
+        <input type="hidden" id="editGroupId" />
+        <label for="editNombre">Nombre</label>
+        <input id="editNombre" type="text" placeholder="Nombre del grupo" required />
+        <label for="editDesc">Descripción</label>
+        <input id="editDesc" type="text" placeholder="Descripción (opcional)" />
+        <div class="modal-error" id="editError"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" id="btnCancelEdit">Cancelar</button>
+          <button class="btn-save" id="btnSaveEdit">Guardar</button>
+        </div>
+      </div>
+    </div>
+
+    <script is:inline src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script is:inline src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+    <script is:inline>
+      $(function () {
+        const origin = location.origin;
+
+        const table = $("#gruposTable").DataTable({
+          searching: true, paging: true, ordering: true,
+          info: true, pageLength: 25, lengthMenu: [10, 25, 50],
+          dom: "lfrtip",
+          language: { url: "https://cdn.datatables.net/plug-ins/1.13.8/i18n/es-ES.json" },
+          order: [[0, "desc"]],
+          columnDefs: [{ orderable: false, targets: 6 }],
+        });
+
+        // ── Crear grupo ─────────────────────────────────────────
+        document.getElementById("btnCreate").addEventListener("click", async () => {
+          const nombreInput = document.querySelector(".add-form input[name='nombre']");
+          const descInput   = document.querySelector(".add-form input[name='descripcion']");
+          const result      = document.getElementById("addResult");
+          result.className  = "";
+          result.textContent = "";
+
+          const res = await fetch("/api/admin/grupos/create", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ nombre: nombreInput.value, descripcion: descInput.value || null }),
+          });
+          const json = await res.json();
+          if (!res.ok) { result.className = "error"; result.textContent = json.error; return; }
+
+          nombreInput.value = "";
+          descInput.value   = "";
+
+          const newRow = table.row.add([
+            json.id,
+            json.nombre,
+            json.descripcion ?? "—",
+            `<a class="short-link" href="/g/${json.slug}" target="_blank">/g/${json.slug}</a>`,
+            `<span class="badge-items">0</span>`,
+            new Date().toISOString().slice(0, 16).replace("T", " "),
+            `<button class="btn-manage" data-id="${json.id}" data-nombre="${escHtml(json.nombre)}" data-slug="${json.slug}">Gestionar</button>
+             <button class="btn-edit" data-id="${json.id}" data-nombre="${escHtml(json.nombre)}" data-desc="">Editar</button>
+             <button class="btn-delete" data-id="${json.id}">Eliminar</button>`,
+          ]);
+          newRow.node().id = `row-${json.id}`;
+          table.draw(false);
+        });
+
+        // ── Eliminar grupo ──────────────────────────────────────
+        $("#gruposTable").on("click", ".btn-delete", async function () {
+          const id = parseInt($(this).data("id"), 10);
+          if (!confirm("¿Eliminar este grupo y todos sus enlaces?")) return;
+          const res = await fetch("/api/admin/grupos/delete", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id }),
+          });
+          if (res.ok) { table.row(`#row-${id}`).remove().draw(false); }
+          else alert("Error al eliminar el grupo");
+        });
+
+        // ── Modal editar grupo ──────────────────────────────────
+        const editOverlay = document.getElementById("editOverlay");
+
+        $("#gruposTable").on("click", ".btn-edit", function () {
+          document.getElementById("editGroupId").value = $(this).data("id");
+          document.getElementById("editNombre").value  = $(this).data("nombre");
+          document.getElementById("editDesc").value    = $(this).data("desc");
+          document.getElementById("editError").textContent = "";
+          editOverlay.classList.add("active");
+          document.getElementById("editNombre").focus();
+        });
+
+        function closeEditModal() { editOverlay.classList.remove("active"); }
+        document.getElementById("btnCloseEdit").addEventListener("click", closeEditModal);
+        document.getElementById("btnCancelEdit").addEventListener("click", closeEditModal);
+        editOverlay.addEventListener("click", (e) => { if (e.target === editOverlay) closeEditModal(); });
+
+        document.getElementById("btnSaveEdit").addEventListener("click", async () => {
+          const id     = parseInt(document.getElementById("editGroupId").value, 10);
+          const nombre = document.getElementById("editNombre").value.trim();
+          const desc   = document.getElementById("editDesc").value.trim();
+          document.getElementById("editError").textContent = "";
+
+          const res = await fetch("/api/admin/grupos/update", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ id, nombre, descripcion: desc || null }),
+          });
+          const json = await res.json();
+          if (!res.ok) { document.getElementById("editError").textContent = json.error; return; }
+
+          const row = table.row(`#row-${id}`);
+          const data = row.data();
+          data[1] = nombre;
+          data[2] = desc || "—";
+          const editBtn  = row.node().querySelector(".btn-edit");
+          const mgrBtn   = row.node().querySelector(".btn-manage");
+          editBtn.dataset.nombre = nombre;
+          editBtn.dataset.desc   = desc;
+          mgrBtn.dataset.nombre  = nombre;
+          row.data(data).draw(false);
+          closeEditModal();
+        });
+
+        // ── Modal gestionar items ───────────────────────────────
+        const manageOverlay = document.getElementById("manageOverlay");
+        let currentGroupId  = null;
+        let editingItemId   = null;
+
+        async function openManageModal(id, nombre) {
+          currentGroupId = id;
+          document.getElementById("manageGroupId").value = id;
+          document.getElementById("manageTitle").textContent = `Gestionar: ${nombre}`;
+          resetItemForm();
+          await reloadItems();
+          manageOverlay.classList.add("active");
+        }
+
+        function closeManageModal() {
+          manageOverlay.classList.remove("active");
+          currentGroupId = null;
+        }
+
+        document.getElementById("btnCloseManage").addEventListener("click", closeManageModal);
+        manageOverlay.addEventListener("click", (e) => { if (e.target === manageOverlay) closeManageModal(); });
+
+        $("#gruposTable").on("click", ".btn-manage", function () {
+          openManageModal(parseInt($(this).data("id"), 10), $(this).data("nombre"));
+        });
+
+        async function reloadItems() {
+          const res  = await fetch(`/api/admin/grupos/items/list?grupo_id=${currentGroupId}`);
+          const json = await res.json();
+          renderItems(json.items ?? []);
+          // Update badge in table
+          const row  = table.row(`#row-${currentGroupId}`);
+          if (row.node()) {
+            const data = row.data();
+            data[4] = `<span class="badge-items">${json.items.length}</span>`;
+            row.data(data).draw(false);
+          }
+        }
+
+        function renderItems(items) {
+          const list = document.getElementById("itemsList");
+          if (items.length === 0) {
+            list.innerHTML = `<p class="items-empty">Sin enlaces. Agrega el primero abajo.</p>`;
+            return;
+          }
+          list.innerHTML = items.map(item => `
+            <div class="item-row" id="item-row-${item.id}">
+              <div class="item-info">
+                <div class="item-title">${escHtml(item.titulo || item.url)}</div>
+                <div class="item-url">${escHtml(item.url)}</div>
+              </div>
+              <div class="item-actions">
+                <button class="btn-edit btn-edit-item" data-id="${item.id}"
+                  data-titulo="${escHtml(item.titulo ?? '')}" data-url="${escHtml(item.url)}">Editar</button>
+                <button class="btn-delete btn-delete-item" data-id="${item.id}">Eliminar</button>
+              </div>
+            </div>
+          `).join("");
+
+          // Bind item events
+          list.querySelectorAll(".btn-delete-item").forEach(btn => {
+            btn.addEventListener("click", async () => {
+              const id = parseInt(btn.dataset.id, 10);
+              if (!confirm("¿Eliminar este enlace?")) return;
+              const res = await fetch("/api/admin/grupos/items/delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ id }),
+              });
+              if (res.ok) await reloadItems();
+              else alert("Error al eliminar el enlace");
+            });
+          });
+
+          list.querySelectorAll(".btn-edit-item").forEach(btn => {
+            btn.addEventListener("click", () => {
+              editingItemId = parseInt(btn.dataset.id, 10);
+              document.getElementById("editItemId").value    = editingItemId;
+              document.getElementById("itemTitulo").value    = btn.dataset.titulo;
+              document.getElementById("itemUrl").value       = btn.dataset.url;
+              document.getElementById("addItemFormTitle").textContent = "Editar enlace";
+              document.getElementById("btnSaveItem").textContent     = "Guardar cambios";
+              document.getElementById("btnCancelItem").style.display = "inline-block";
+              document.getElementById("itemUrl").focus();
+            });
+          });
+        }
+
+        function resetItemForm() {
+          editingItemId = null;
+          document.getElementById("editItemId").value    = "";
+          document.getElementById("itemTitulo").value    = "";
+          document.getElementById("itemUrl").value       = "";
+          document.getElementById("addItemResult").textContent = "";
+          document.getElementById("addItemResult").className = "add-item-result";
+          document.getElementById("addItemFormTitle").textContent = "Agregar enlace";
+          document.getElementById("btnSaveItem").textContent     = "Agregar";
+          document.getElementById("btnCancelItem").style.display = "none";
+        }
+
+        document.getElementById("btnCancelItem").addEventListener("click", resetItemForm);
+
+        document.getElementById("btnSaveItem").addEventListener("click", async () => {
+          const titulo = document.getElementById("itemTitulo").value.trim();
+          const url    = document.getElementById("itemUrl").value.trim();
+          const result = document.getElementById("addItemResult");
+          result.textContent = "";
+          result.className = "add-item-result";
+
+          if (editingItemId) {
+            const res = await fetch("/api/admin/grupos/items/update", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ id: editingItemId, titulo, url }),
+            });
+            const json = await res.json();
+            if (!res.ok) { result.className = "add-item-result error"; result.textContent = json.error; return; }
+            resetItemForm();
+            await reloadItems();
+          } else {
+            const res = await fetch("/api/admin/grupos/items/add", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ grupo_id: currentGroupId, titulo, url }),
+            });
+            const json = await res.json();
+            if (!res.ok) { result.className = "add-item-result error"; result.textContent = json.error; return; }
+            resetItemForm();
+            await reloadItems();
+          }
+        });
+
+        // ── Helpers ─────────────────────────────────────────────
+        function escHtml(str) {
+          return String(str)
+            .replace(/&/g, "&amp;").replace(/"/g, "&quot;")
+            .replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+      });
+    </script>
+  </body>
+</html>
